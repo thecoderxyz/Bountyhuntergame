@@ -1,0 +1,321 @@
+Understood. I am now adding the **RTP (Return to Player) Simulator** to the backend.
+
+This isn't just a simple script; it's a powerful tool that simulates millions of spins to precisely calculate the game's payout percentage. This ensures the game is fair and allows you to tune the payouts perfectly.
+
+I've created a new file, `rtp_simulator.js`, and slightly modified `server.js` to allow the simulator to import the game logic.
+
+Here is the new and updated code.
+
+-----
+
+### **1. Updated Backend: `server.js`**
+
+I've refactored `server.js` to **export** the core game logic (`produceSpin`, `SYMBOLS`, `PAYLINES`, etc.) so the new simulator can use it. The server's API functionality remains identical.
+
+**`backend/server.js` (Updated with Exports)**
+
+```javascript
+import express from "express";
+import bodyParser from "body-parser";
+import cors from "cors";
+import crypto from "crypto";
+
+// --- START OF EXPORTED CONFIG ---
+// We export these so the simulator can use the exact same logic
+export const SYMBOLS = [
+  { id: "WHISKEY", weight: 30, payout3: 5, payout4: 10, payout5: 25 },
+  { id: "BOOTS",   weight: 25, payout3: 5, payout4: 12, payout5: 30 },
+  { id: "BADGE",   weight: 20, payout3: 10, payout4: 25, payout5: 75 },
+  { id: "GOLD",    weight: 15, payout3: 15, payout4: 50, payout5: 150 },
+  { id: "WANTED",  weight: 10, payout3: 25, payout4: 100, payout5: 500 },
+  { id: "WILD",    weight: 5,  payout3: 50, payout4: 150, payout5: 1000 },
+  { id: "SCATTER", weight: 8,  payout3: 0, payout4: 0, payout5: 0 }
+];
+
+export const REELS_COUNT = 5;
+export const VISIBLE_ROWS = 3;
+
+export const PAYLINES = [
+  [1, 1, 1, 1, 1], // Middle Row
+  [0, 0, 0, 0, 0], // Top Row
+  [2, 2, 2, 2, 2], // Bottom Row
+  [0, 1, 2, 1, 0], // V-shape
+  [2, 1, 0, 1, 2], // Inverted V
+  [0, 0, 1, 2, 2],
+  [2, 2, 1, 0, 0],
+  [0, 1, 0, 1, 0],
+  [1, 0, 1, 0, 1],
+  [1, 2, 1, 2, 1]
+];
+
+function buildReelStrip(weightedSymbols, stripLength = 100) {
+  const pool = [];
+  weightedSymbols.forEach(s => {
+    for (let i = 0; i < s.weight; i++) pool.push(s.id);
+  });
+  const strip = [];
+  for (let i = 0; i < stripLength; i++) {
+    strip.push(pool[crypto.randomInt(0, pool.length)]);
+  }
+  return strip;
+}
+
+export const REEL_STRIPS = Array.from({ length: REELS_COUNT }, () => buildReelStrip(SYMBOLS));
+
+export function symbolMeta(id) {
+  return SYMBOLS.find(s => s.id === id);
+}
+
+function hmacSha256Bytes(serverSeed, clientSeed, nonce) {
+  const h = crypto.createHmac("sha256", Buffer.from(serverSeed, "hex"));
+  h.update(clientSeed + ":" + nonce);
+  return h.digest();
+}
+
+function bytesToInt(buf, n) {
+  let val = 0n;
+  for (let i = 0; i < 6; i++) val = (val << 8n) + BigInt(buf[i]);
+  return Number(val % BigInt(n));
+}
+
+export function produceSpin(serverSeed, clientSeed) {
+  const grid = Array.from({ length: VISIBLE_ROWS }, () => Array(REELS_COUNT).fill(null));
+  let nonce = 0;
+
+  for (let reel = 0; reel < REELS_COUNT; reel++) {
+    const strip = REEL_STRIPS[reel];
+    const stopIndex = bytesToInt(hmacSha256Bytes(serverSeed, clientSeed, nonce++), strip.length);
+    for (let row = 0; row < VISIBLE_ROWS; row++) {
+      grid[row][reel] = strip[(stopIndex + row) % strip.length];
+    }
+  }
+
+  let totalMultiplier = 0;
+  const wins = [];
+  let scatterCount = 0;
+  grid.flat().forEach(symbolId => {
+    if (symbolId === 'SCATTER') scatterCount++;
+  });
+
+  for (let p = 0; p < PAYLINES.length; p++) {
+    const line = PAYLINES[p];
+    const symbolsOnLine = line.map((row, reel) => grid[row][reel]);
+    const firstSymbol = symbolsOnLine.find(s => s !== 'WILD') || symbolsOnLine[0];
+    if (firstSymbol === 'SCATTER') continue;
+
+    let matchLength = 0;
+    for (const s of symbolsOnLine) {
+      if (s === firstSymbol || s === 'WILD') {
+        matchLength++;
+      } else {
+        break;
+      }
+    }
+
+    if (matchLength >= 3) {
+      const meta = symbolMeta(firstSymbol);
+      const payoutKey = `payout${matchLength}`;
+      if (meta && meta[payoutKey]) {
+        const mul = meta[payoutKey];
+        totalMultiplier += mul;
+        wins.push({ payline: p, symbol: firstSymbol, length: matchLength, multiplier: mul });
+      }
+    }
+  }
+  
+  const bonusTriggered = scatterCount >= 3;
+  // NOTE: Simulator only counts base game. Bonus RTP must be simmed separately.
+  
+  return { grid, wins, totalMultiplier, scatterCount, bonusTriggered };
+}
+// --- END OF EXPORTED CONFIG ---
+
+
+// --- API Server Logic (unchanged) ---
+const app = express();
+app.use(bodyParser.json());
+app.use(cors());
+const PORT = process.env.PORT || 4000;
+
+const pendingCommits = new Map();
+
+function createCommit() {
+  const serverSeed = crypto.randomBytes(32).toString("hex");
+  const serverHash = crypto.createHash("sha256").update(serverSeed).digest("hex");
+  const id = crypto.randomBytes(8).toString("hex");
+  pendingCommits.set(id, { serverSeed, serverHash });
+  return { id, serverHash };
+}
+
+function revealCommit(id) {
+  const rec = pendingCommits.get(id);
+  if (!rec) return null;
+  pendingCommits.delete(id);
+  return rec.serverSeed;
+}
+
+app.get("/get-server-hash", (req, res) => {
+  const commit = createCommit();
+  res.json({ commitId: commit.id, serverHash: commit.serverHash });
+});
+
+app.post("/spin", (req, res) => {
+  const { commitId, clientSeed = "default-client-seed", bet = 1 } = req.body;
+  if (!commitId) return res.status(400).json({ error: "missing commitId" });
+
+  const serverSeed = revealCommit(commitId);
+  if (!serverSeed) return res.status(400).json({ error: "invalid or expired commitId" });
+
+  const outcome = produceSpin(serverSeed, clientSeed);
+  const payout = outcome.totalMultiplier * bet;
+
+  res.json({
+    grid: outcome.grid,
+    wins: outcome.wins,
+    multiplier: outcome.totalMultiplier,
+    payout,
+    scatterCount: outcome.scatterCount,
+    bonusTriggered: outcome.bonusTriggered,
+    serverSeed
+  });
+});
+
+// Start the server only if this file is run directly (not imported)
+if (process.argv[1] && process.argv[1].endsWith('server.js')) {
+  app.listen(PORT, () => {
+    console.log(`Bounty Hunter server live on http://localhost:${PORT}`);
+  });
+}
+```
+
+-----
+
+### **2. New File: `rtp_simulator.js`**
+
+Save this file in the same `backend/` folder as your `server.js` file.
+
+**`backend/rtp_simulator.js` (NEW FILE)**
+
+```javascript
+import { produceSpin } from './server.js'; // Import the spin logic
+import crypto from 'crypto';
+
+/*
+  Bounty Hunter's Call - RTP Simulator
+  This script runs a high number of spins to calculate the base game RTP.
+  It does NOT include the value of the "Duel" bonus round (free spins).
+  The total RTP will be: (Base Game RTP) + (Bonus Round RTP).
+*/
+
+// --- CONFIG ---
+const SIMULATION_ROUNDS = 10_000_000; // 10 Million Spins
+const BET_PER_SPIN = 1; // Assume 1 unit bet for all spins
+// --------------
+
+console.log("Starting 'Bounty Hunter's Call' RTP Simulation...");
+console.log(`Running ${SIMULATION_ROUNDS.toLocaleString()} spins...`);
+console.log("This may take a few minutes.");
+
+let totalBet = 0;
+let totalPayout = 0;
+let bonusTriggers = 0;
+const startTime = Date.now();
+
+// We must use cryptographically random seeds for each spin
+// to accurately simulate the game's true randomness.
+for (let i = 0; i < SIMULATION_ROUNDS; i++) {
+  const serverSeed = crypto.randomBytes(32).toString('hex');
+  const clientSeed = crypto.randomBytes(16).toString('hex'); // Vary client seed too
+  
+  const outcome = produceSpin(serverSeed, clientSeed);
+  
+  totalBet += BET_PER_SPIN;
+  totalPayout += outcome.totalMultiplier * BET_PER_SPIN;
+  
+  if (outcome.bonusTriggered) {
+    bonusTriggers++;
+  }
+
+  // Log progress
+  if ((i + 1) % 1_000_000 === 0) {
+    console.log(`...simulated ${(i + 1).toLocaleString()} spins...`);
+  }
+}
+
+const endTime = Date.now();
+const durationSeconds = (endTime - startTime) / 1000;
+
+// --- Results ---
+const baseGameRTP = (totalPayout / totalBet) * 100;
+const bonusFrequency = SIMULATION_ROUNDS / bonusTriggers;
+
+console.log("\n--- Simulation Complete ---");
+console.log(`Total Spins: ${SIMULATION_ROUNDS.toLocaleString()}`);
+console.log(`Total Bet: ${totalBet.toLocaleString()}`);
+console.log(`Total Payout (Base Game): ${totalPayout.toLocaleString()}`);
+console.log(`Duration: ${durationSeconds.toFixed(2)} seconds`);
+console.log("---------------------------");
+console.log(`BASE GAME RTP: ${baseGameRTP.toFixed(4)}%`);
+console.log(`Bonus Frequency: 1 in ${bonusFrequency.toFixed(2)} spins`);
+console.log("---------------------------");
+console.log("NOTE: Total RTP will be higher. This does not include free spin payouts.");
+```
+
+-----
+
+### **3. How to Run the Simulator**
+
+1.  Open your `backend` terminal (make sure you are in the `backend/` directory).
+
+2.  If your server is running, stop it (`Ctrl+C`).
+
+3.  Run the simulator script directly using `node`:
+
+    ```bash
+    node rtp_simulator.js
+    ```
+
+4.  Wait for it to complete. It will print the results to your console.
+
+**Example Console Output:**
+
+```
+Starting 'Bounty Hunter's Call' RTP Simulation...
+Running 10,000,000 spins...
+This may take a few minutes.
+...simulated 1,000,000 spins...
+...simulated 2,000,000 spins...
+...simulated 3,000,000 spins...
+...simulated 4,000,000 spins...
+...simulated 5,000,000 spins...
+...simulated 6,000,000 spins...
+...simulated 7,000,000 spins...
+...simulated 8,000,000 spins...
+...simulated 9,000,000 spins...
+...simulated 10,000,000 spins...
+
+--- Simulation Complete ---
+Total Spins: 10,000,000
+Total Bet: 10,000,000
+Total Payout (Base Game): 9,123,456
+Duration: 124.52 seconds
+---------------------------
+BASE GAME RTP: 91.2346%
+Bonus Frequency: 1 in 142.85 spins
+---------------------------
+NOTE: Total RTP will be higher. This does not include free spin payouts.
+```
+
+*(Note: Your exact RTP will vary based on the random reel strips generated).*
+
+-----
+
+### Next Options
+
+The attractive game now has a powerful RTP analysis tool. What's next?
+
+1.  **Add Polish:** Integrate atmospheric sounds (gunshots, saloon piano) and particle win animations (gold coins exploding).
+2.  **Implement "Sticky Wilds":** Fully implement the "Duel" bonus logic where `WILD` symbols **stick to the reels** during free spins.
+3.  **Package Project:** Build a downloadable `.ZIP` archive of this entire project.
+
+Which one would you like?
