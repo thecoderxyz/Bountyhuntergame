@@ -1,130 +1,115 @@
+/*
+  ================================================================
+  MODERN & RESPONSIVE index.css for TAILWIND CSS
+  ================================================================
+  This file provides:
+  1. The required Tailwind CSS directives.
+  2. A modern CSS reset for consistent styling across all browsers.
+  3. Best-practice base styles for a flexible, responsive layout.
+  4. Accessibility improvements.
+*/
+
+/* 1. Tailwind Directives */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* 2. Base Layer & Modern CSS Reset */
 @layer base {
-  * {
-    @apply border-border;
+  /*
+    Use a more intuitive box-sizing model on every element.
+  */
+  *,
+  *::before,
+  *::after {
+    @apply box-border;
   }
 
+  /*
+    Remove default margins from the body.
+  */
   body {
-    @apply font-sans antialiased bg-background text-foreground;
-    margin: 0;
-    padding: 0;
-    overflow-x: hidden;
-    width: 100vw;
-    min-height: 100vh;
+    @apply m-0;
   }
-}
 
-#root {
-  width: 100%;
-  min-height: 100vh;
-  position: relative;
-}
-
-/* Custom animations for slot machine */
-@keyframes reel-spin {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(-300px); }
-}
-
-@keyframes win-flash {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
-}
-
-@keyframes coin-shower {
-  0% { 
-    transform: translateY(-50px) rotate(0deg);
-    opacity: 1;
+  /*
+    Improve media defaults. Makes images and videos responsive by default.
+  */
+  img,
+  picture,
+  video,
+  canvas,
+  svg {
+    @apply block max-w-full;
   }
-  100% { 
-    transform: translateY(200px) rotate(360deg);
-    opacity: 0;
+
+  /*
+    Remove built-in form typography styles.
+  */
+  input,
+  button,
+  textarea,
+  select {
+    /*
+      FIX: Replaced the broken '@apply font-inherit;'
+      with 'font-family: inherit;'
+    */
+    font-family: inherit;
   }
-}
 
-.reel-spinning {
-  animation: reel-spin 0.1s linear infinite;
-}
-
-.win-highlight {
-  animation: win-flash 0.5s ease-in-out infinite;
-}
-
-.coin-animation {
-  animation: coin-shower 2s ease-out forwards;
-}
-
-/* Slot machine specific styles */
-.slot-symbol {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.slot-symbol:hover {
-  transform: scale(1.05);
-}
-
-.payline-active {
-  stroke-dasharray: 5, 5;
-  animation: dash 1s linear infinite;
-}
-
-@keyframes dash {
-  to {
-    stroke-dashoffset: -10;
+  /*
+    Avoid text overflows.
+  */
+  p,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    overflow-wrap: break-word;
   }
-}
 
-/* Wild West theme enhancements */
-.saloon-border {
-  border-image: linear-gradient(45deg, #d97706, #92400e) 1;
-  border-style: solid;
-  border-width: 4px;
-}
+  /*
+    ============================================================
+    3. CORE LAYOUT SETUP (FIXES RESPONSIVENESS)
+    ============================================================
+  */
 
-.wood-texture {
-  background-image: 
-    linear-gradient(45deg, rgba(139, 69, 19, 0.1) 25%, transparent 25%),
-    linear-gradient(-45deg, rgba(139, 69, 19, 0.1) 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, rgba(139, 69, 19, 0.1) 75%),
-    linear-gradient(-45deg, transparent 75%, rgba(139, 69, 19, 0.1) 75%);
-  background-size: 20px 20px;
-  background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
-}
+  /*
+    - Set the body to fill at least the full viewport height.
+    - Set a default font-smoothing for better text rendering.
+    - Set a default line-height for readability.
+    - This replaces fixed heights/widths and 'overflow: hidden'.
+  */
+  body {
+    @apply min-h-screen antialiased;
+    line-height: 1.5;
+  }
 
-/* Responsive design */
-@media (max-width: 768px) {
-  .slot-symbol {
-    width: 60px;
-    height: 60px;
+  /*
+    - Ensure the root element can also fill the screen.
+    - 'overflow-x: clip' is the modern, safe way to prevent
+      accidental horizontal scrollbars without disabling vertical
+      scrolling or causing layout shifts.
+  */
+  #root {
+    @apply min-h-screen;
+    overflow-x: clip;
   }
-  
-  .slot-symbol .text-3xl {
-    font-size: 1.5rem;
-  }
-}
 
-/* Accessibility improvements */
-@media (prefers-reduced-motion: reduce) {
-  .reel-spinning {
-    animation: none;
-  }
-  
-  .win-highlight {
-    animation: none;
-    opacity: 0.8;
-  }
-  
-  .coin-animation {
-    animation: none;
-  }
-}
+  /*
+    ============================================================
+    4. ACCESSIBILITY IMPROVEMENTS
+    ============================================================
+  */
 
-/* High contrast mode */
-@media (prefers-contrast: high) {
-  .slot-symbol {
-    border-width: 3px;
+  /*
+    Enable smooth scrolling for users who haven't disabled it.
+  */
+  @media (prefers-reduced-motion: no-preference) {
+    :root {
+      scroll-behavior: smooth;
+    }
   }
 }
