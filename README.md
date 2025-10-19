@@ -1,13 +1,9 @@
-
----
-
-````markdown
 <div align="center">
 
 # 🤠 **Bounty Hunter's Call**  
 ### 🎰 *Provably Fair Slot Game*
 
-![Bounty Hunter's Call Gameplay](client/src/assets/screenshot.png)
+![Bounty Hunter's Call Gameplay](screenshot.png)
 
 > 🪙 *A Wild West–themed, entertainment-only slot game built with modern web technologies and a provably fair system ensuring transparent outcomes for every spin.*
 
@@ -129,5 +125,3 @@ The **author (Ranjit Nath)** bears **no responsibility** for any misuse of this 
 
 </div>
 ```
-
----
