@@ -1,36 +1,54 @@
 import { Button } from "./ui/button";
 
+// FIX: Add the new audio function props
 interface ControlPanelProps {
   bet: number;
   setBet: (bet: number) => void;
   onSpin: () => void;
   canSpin: boolean;
   balance: number;
+  playClick: () => void;
+  initializeAudio: () => void;
 }
 
 const BET_OPTIONS = [0.25, 0.50, 1, 2, 5, 10, 25, 50];
 
-export function ControlPanel({ bet, setBet, onSpin, canSpin, balance }: ControlPanelProps) {
+export function ControlPanel({ 
+  bet, 
+  setBet, 
+  onSpin, 
+  canSpin, 
+  balance,
+  // FIX: Destructure the new props
+  playClick,
+  initializeAudio
+}: ControlPanelProps) {
+
+  // FIX: All handler functions now initialize audio and play a click sound
   const handleBetChange = (amount: number) => {
-    console.log('Bet button clicked:', amount);
+    initializeAudio();
+    playClick();
     setBet(amount);
   };
 
   const handleBetHalf = () => {
+    initializeAudio();
+    playClick();
     const newBet = Math.max(0.25, bet / 2);
-    console.log('Bet ½ clicked:', bet, '->', newBet);
     setBet(newBet);
   };
 
   const handleBetDouble = () => {
+    initializeAudio();
+    playClick();
     const newBet = Math.min(50, bet * 2);
-    console.log('Bet 2x clicked:', bet, '->', newBet);
     setBet(newBet);
   };
 
   const handleMaxBet = () => {
+    initializeAudio();
+    playClick();
     const newBet = Math.min(50, balance);
-    console.log('Max Bet clicked:', balance, '->', newBet);
     setBet(newBet);
   };
 
@@ -45,14 +63,14 @@ export function ControlPanel({ bet, setBet, onSpin, canSpin, balance }: ControlP
               key={amount}
               onClick={() => handleBetChange(amount)}
               variant={bet === amount ? "default" : "outline"}
-              disabled={amount > balance}
+              disabled={amount > balance || !canSpin} // FIX: Also disable if spinning
               className={`
                 text-xs sm:text-sm
                 ${bet === amount 
                   ? 'bg-amber-600 hover:bg-amber-500 text-white' 
                   : 'bg-amber-900 hover:bg-amber-800 text-amber-100 border-amber-600'
                 }
-                ${amount > balance ? 'opacity-50 cursor-not-allowed' : ''}
+                ${(amount > balance || !canSpin) ? 'opacity-50 cursor-not-allowed' : ''}
               `}
             >
               ${amount}
@@ -64,7 +82,7 @@ export function ControlPanel({ bet, setBet, onSpin, canSpin, balance }: ControlP
       {/* Spin Controls */}
       <div className="flex items-center justify-center">
         <Button
-          onClick={onSpin}
+          onClick={onSpin} // The 'onSpin' prop from SlotMachine already handles audio
           disabled={!canSpin}
           size="lg"
           className={`
@@ -85,23 +103,24 @@ export function ControlPanel({ bet, setBet, onSpin, canSpin, balance }: ControlP
         <Button
           onClick={handleBetHalf}
           variant="outline"
-          className="flex-1 sm:flex-none bg-amber-900 hover:bg-amber-800 text-amber-100 border-amber-600 text-xs sm:text-sm"
+          disabled={!canSpin} // FIX: Also disable if spinning
+          className="flex-1 sm:flex-none bg-amber-900 hover:bg-amber-800 text-amber-100 border-amber-600 text-xs sm:text-sm disabled:opacity-50"
         >
           Bet ½
         </Button>
         <Button
           onClick={handleBetDouble}
           variant="outline"
-          disabled={bet * 2 > balance}
-          className="flex-1 sm:flex-none bg-amber-900 hover:bg-amber-800 text-amber-100 border-amber-600 text-xs sm:text-sm"
+          disabled={bet * 2 > balance || !canSpin} // FIX: Also disable if spinning
+          className="flex-1 sm:flex-none bg-amber-900 hover:bg-amber-800 text-amber-100 border-amber-600 text-xs sm:text-sm disabled:opacity-50"
         >
           Bet 2x
         </Button>
         <Button
           onClick={handleMaxBet}
           variant="outline"
-          disabled={balance <= 0}
-          className="flex-1 sm:flex-none bg-amber-900 hover:bg-amber-800 text-amber-100 border-amber-600 text-xs sm:text-sm"
+          disabled={balance <= 0 || !canSpin} // FIX: Also disable if spinning
+          className="flex-1 sm:flex-none bg-amber-900 hover:bg-amber-800 text-amber-100 border-amber-600 text-xs sm:text-sm disabled:opacity-50"
         >
           Max Bet
         </Button>
