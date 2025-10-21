@@ -3,8 +3,6 @@
 # 🤠 **Bounty Hunter's Call**  
 ### 🎰 *Provably Fair Slot Game*
 
-![Bounty Hunter's Call Gameplay](Screenshot_2025-10-19-07-22-34-94_40deb401b9ffe8e1df2f1cc5ba480b12.jpg)
-
 > 🪙 *A Wild West–themed, entertainment-only slot game built with modern web technologies and a provably fair system ensuring transparent outcomes for every spin.*
 
 ---
